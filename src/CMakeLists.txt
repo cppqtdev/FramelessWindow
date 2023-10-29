@@ -124,7 +124,8 @@ if(QT_VERSION VERSION_GREATER_EQUAL "6.2")
 	QML_FILES ${qml_files}
 	RESOURCES ${resource_files}
 	RESOURCE_PREFIX "/"
-	SOURCES main.cpp
+	SOURCES start/main.cpp
+	SOURCES start/Version.h
     )
 else()
     target_include_directories(plugin PRIVATE
