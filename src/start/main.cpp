@@ -62,6 +62,16 @@ int main(int argc, char *argv[])
     QGuiApplication::setOrganizationName("TechCoderHub");
     QGuiApplication::setOrganizationDomain("https://divyadesh.github.io");
     QGuiApplication::setApplicationName("QT UI");
+
+    SettingsHelper::getInstance()->init(argv);
+    if(SettingsHelper::getInstance()->getRender()=="software"){
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+        QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
+#elif (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+        QQuickWindow::setSceneGraphBackend(QSGRendererInterface::Software);
+#endif
+    }
+
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
     AppInfo::getInstance()->init(&engine);
@@ -78,32 +88,12 @@ int main(int argc, char *argv[])
 
     FramelessHelper::Quick::registerTypes(&engine);
 
-    const QUrl url(QStringLiteral("qrc:/qt/qml/start/qml/window/MainWindow.qml"));
+    const QUrl url(QStringLiteral("qrc:/qt/qml/start/App.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
         &app, [url](QObject *obj, const QUrl &objUrl) {
             if (!obj && url == objUrl)
                 QCoreApplication::exit(-1);
-            FluentUI::getFapp()->init(obj);
-            QMap<QString, QString> routes = {
-                {"/", "qrc:/qt/qml/start/qml/window/MainWindow.qml"},
-                {"/about", "qrc:/qt/qml/start/qml/window/AboutWindow.qml"},
-                {"/login", "qrc:/qt/qml/start/qml/window/LoginWindow.qml"},
-                {"/hotload", "qrc:/qt/qml/start/qml/window/HotloadWindow.qml"},
-                {"/singleTaskWindow", "qrc:/qt/qml/start/qml/window/SingleTaskWindow.qml"},
-                {"/standardWindow", "qrc:/qt/qml/start/qml/window/StandardWindow.qml"},
-                {"/singleInstanceWindow", "qrc:/qt/qml/start/qml/window/SingleInstanceWindow.qml"},
-                {"/pageWindow", "qrc:/qt/qml/start/qml/window/PageWindow.qml"}
-            };
-            // Create a QJsonObject to hold the data.
-            QJsonObject jsonRoutes;
-
-            // Convert the QMap to a QJsonObject.
-            for (auto it = routes.begin(); it != routes.end(); ++it) {
-                jsonRoutes[it.key()] = it.value();
-            }
-            FluentUI::getFapp()->routes(jsonRoutes);
-
-        }, Qt::QueuedConnection);
+    }, Qt::QueuedConnection);
     engine.load(url);
     const int exec = QGuiApplication::exec();
     if (exec == 931) {
