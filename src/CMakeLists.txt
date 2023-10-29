@@ -1,23 +1,31 @@
 cmake_minimum_required(VERSION 3.20)
 
-if (FLUENTUI_BUILD_STATIC_LIB AND (QT_VERSION VERSION_GREATER_EQUAL "6.2"))
-    project(fluentui LANGUAGES CXX)
-else()
-    project(fluentuiplugin LANGUAGES CXX)
-endif()
+project(plugin VERSION 0.1 LANGUAGES CXX)
 
-#配置通用编译
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(APPLE)
     set(CMAKE_OSX_ARCHITECTURES "arm64;x86_64" CACHE STRING "" FORCE)
 endif()
 
-if (FLUENTUI_BUILD_STATIC_LIB)
+set(QML_IMPORT_PATH ${CMAKE_BINARY_DIR}/plugin CACHE STRING "Qt Creator extra QML import paths" FORCE)
+
+#判断FluentUI库类型
+if(FLUENTUI_BUILD_STATIC_LIB)
     add_definitions(-DFLUENTUI_BUILD_STATIC_LIB)
 endif()
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core Quick Qml)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Core Quick Qml)
+#设置可执行文件输出目录
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/debug)
+else()
+    set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/bin/release)
+endif()
+
+#获取文件路径分隔符（解决执行命令的时候有些平台会报错）
+file(TO_CMAKE_PATH "/" PATH_SEPARATOR)
+
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Quick Svg Network)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Quick Svg Network)
 
 if(QT_VERSION VERSION_GREATER_EQUAL "6.3")
     qt_standard_project_setup()
@@ -27,6 +35,13 @@ else()
     set(CMAKE_AUTOUIC ON)
 endif()
 
+##生成版本信息头文件
+set(HEADER_FILE_VERSION_PATH ${FLUENTUI_DIRECTORY}/example/Version.h)
+configure_file(
+    ${FLUENTUI_DIRECTORY}/.cmake/Version.h.in
+    ${HEADER_FILE_VERSION_PATH}
+)
+
 #遍历所有Cpp文件
 file(GLOB_RECURSE CPP_FILES *.cpp *.h)
 foreach(filepath ${CPP_FILES})
@@ -35,106 +50,102 @@ foreach(filepath ${CPP_FILES})
 endforeach(filepath)
 
 if(QT_VERSION VERSION_GREATER_EQUAL "6.2")
-
-    #Delete fluentuiplugin.cpp and fluentuiplugin.h, these are only used by Qt5, not required by Qt6
-    list(REMOVE_ITEM sources_files fluentuiplugin.h fluentuiplugin.cpp)
-    if (NOT FLUENTUI_BUILD_STATIC_LIB)
-        list(REMOVE_ITEM sources_files FluentUI.h FluentUI.cpp)
-    endif()
-
     #遍历所有qml文件
     file(GLOB_RECURSE QML_PATHS *.qml)
     foreach(filepath ${QML_PATHS})
-        if(${filepath} MATCHES "Qt${QT_VERSION_MAJOR}/")
-            string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" filename ${filepath})
-            list(APPEND qml_files ${filename})
-        endif()
+	string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" filename ${filepath})
+	if(${filepath} MATCHES "Qt${QT_VERSION_MAJOR}/")
+	    string(REPLACE "qml-Qt${QT_VERSION_MAJOR}" "qml" filealias ${filename})
+	    set_source_files_properties(${filename} PROPERTIES QT_RESOURCE_ALIAS ${filealias})
+	    list(APPEND qml_files ${filename})
+	endif()
     endforeach(filepath)
 
     #遍历所有资源文件
-    file(GLOB_RECURSE RES_PATHS *.png *.jpg *.svg *.ico *.ttf *.webp *.js)
+    file(GLOB_RECURSE RES_PATHS *.png *.jpg *.svg *.ico *.ttf *.webp *.obj qmldir)
     foreach(filepath ${RES_PATHS})
-        if(${filepath} MATCHES "Qt${QT_VERSION_MAJOR}/")
-            string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" filename ${filepath})
-            list(APPEND resource_files ${filename})
-        endif()
+	string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/" "" filename ${filepath})
+	list(APPEND resource_files ${filename})
     endforeach(filepath)
-
-    #修改资源文件导出路径
-    foreach(filepath IN LISTS qml_files resource_files)
-        string(REPLACE "Qt${QT_VERSION_MAJOR}/imports/FluentUI/" "" filename ${filepath})
-        set_source_files_properties(${filepath} PROPERTIES QT_RESOURCE_ALIAS ${filename})
-    endforeach()
 endif()
 
-#添加qml模块
-if (FLUENTUI_BUILD_STATIC_LIB)
-    set(LIB_TYPE "STATIC")
-else()
-    set(LIB_TYPE "SHARED")
-endif()
-
-if (FLUENTUI_BUILD_STATIC_LIB)
-    set(PLUGIN_TARGET_NAME "")
-else()
-    #如果是动态库，则使用插件目标作为其自己的支持目标来定义 QML 模块，在这种情况下，模块必须在运行时动态加载，并且不能由其他目标直接链接到
-    set(PLUGIN_TARGET_NAME ${PROJECT_NAME})
-endif()
-
-#如果是Windows平台，则生成rc文件
-set(FLUENTUI_VERSION_RC_PATH "")
+#如果是Windows平台，则生成rc文件，还有inno setup脚本文件
+set(EXAMPLE_VERSION_RC_PATH "")
 if(WIN32)
-    set(FLUENTUI_VERSION_RC_PATH ${CMAKE_BINARY_DIR}/version_${PROJECT_NAME}.rc)
+    set(EXAMPLE_VERSION_RC_PATH ${CMAKE_BINARY_DIR}/version_${PROJECT_NAME}.rc)
     configure_file(
-        ${FLUENTUI_DIRECTORY}/.cmake/version_dll.rc.in
-        ${FLUENTUI_VERSION_RC_PATH}
+	${FLUENTUI_DIRECTORY}/.cmake/version_exe.rc.in
+	${EXAMPLE_VERSION_RC_PATH}
+    )
+    configure_file(
+	${FLUENTUI_DIRECTORY}/.cmake/InstallerScript.iss.in
+	${CMAKE_SOURCE_DIR}/action-cli/InstallerScript.iss
+    )
+endif()
+
+#添加可执行文件
+if (WIN32)
+    add_executable(plugin
+	${sources_files}
+	${EXAMPLE_VERSION_RC_PATH}
+    )
+else ()
+    add_executable(plugin
+	${sources_files}
+    )
+endif ()
+
+if(WIN32)
+    #复制动态库到可执行文件同级目录下
+    if(CMAKE_SIZEOF_VOID_P EQUAL 4)
+	set(3RDPARTY_ARCH_DIR ${CMAKE_SOURCE_DIR}/3rdparty/Win_x86)
+    elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	set(3RDPARTY_ARCH_DIR ${CMAKE_SOURCE_DIR}/3rdparty/Win_x64)
+    endif()
+    if(MSVC)
+	set(DLLPATH ${3RDPARTY_ARCH_DIR}/msvc/*.dll)
+    elseif(MINGW)
+	set(DLLPATH ${3RDPARTY_ARCH_DIR}/mingw/*.dll)
+    endif()
+    string(REPLACE "/" ${PATH_SEPARATOR} DLLPATH "${DLLPATH}")
+    file(GLOB DLL_FILES ${DLLPATH})
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy
+	${DLL_FILES}
+	${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
     )
 endif()
 
 if(QT_VERSION VERSION_GREATER_EQUAL "6.2")
-    if(FLUENTUI_BUILD_STATIC_LIB)
-        set(FLUENTUI_QML_PLUGIN_DIRECTORY ${CMAKE_BINARY_DIR}/FluentUI)
-    endif()
-    qt_add_library(${PROJECT_NAME} ${LIB_TYPE})
-    qt_add_qml_module(${PROJECT_NAME}
-        PLUGIN_TARGET ${PLUGIN_TARGET_NAME}
-        OUTPUT_DIRECTORY ${FLUENTUI_QML_PLUGIN_DIRECTORY}
-        VERSION 1.0
-        URI "FluentUI"
-        #修改qmltypes文件名称。默认fluentuiplugin.qmltypes，使用默认名称有时候import FluentUI 1.0会爆红，所以修改成plugins.qmltypes
-        TYPEINFO "plugins.qmltypes"
-        SOURCES ${sources_files} ${FLUENTUI_VERSION_RC_PATH}
-        QML_FILES ${qml_files}
-        RESOURCES ${resource_files}
-        RESOURCE_PREFIX "/qt/qml"
+    #添加qml模块
+    qt_add_qml_module(plugin
+	URI "plugin"
+	VERSION 1.0
+	QML_FILES ${qml_files}
+	RESOURCES ${resource_files}
+	RESOURCE_PREFIX "/"
+	SOURCES main.cpp
     )
 else()
-    include(QmlPlugin)
-    add_qmlplugin(${PROJECT_NAME}
-        URI "FluentUI"
-        VERSION 1.0
-        SOURCES ${sources_files} ${FLUENTUI_VERSION_RC_PATH} Qt5/imports/fluentui.qrc
-        QMLFILES ${qml_files}
-        QMLDIR imports/FluentUI
-        BINARY_DIR ${FLUENTUI_QML_PLUGIN_DIRECTORY}
-        LIBTYPE ${LIB_TYPE}
+    target_include_directories(plugin PRIVATE
+	${CMAKE_CURRENT_SOURCE_DIR}
     )
+    target_sources(plugin PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Qt5/imports/fluentui.qrc)
 endif()
 
+#设置属性
+set_target_properties(plugin PROPERTIES
+    MACOSX_BUNDLE_GUI_IDENTIFIER my.plugin.com
+    MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
+    MACOSX_BUNDLE_SHORT_VERSION_STRING ${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}
+    MACOSX_BUNDLE TRUE
+    WIN32_EXECUTABLE TRUE
+)
 
-#去掉mingw生成的动态库libxxx前缀lib，不去掉前缀会导致 module "FluentUI" plugin "fluentuiplugin" not found
-if(MINGW)
-    set_target_properties(${PROJECT_NAME} PROPERTIES PREFIX "")
-    set_target_properties(${PROJECT_NAME} PROPERTIES DEBUG_POSTFIX ".debug")
-endif()
-
-#MSVC Debug 添加后缀d，与Qt插件风格保持一致
-if(MSVC)
-    set_target_properties(${PROJECT_NAME} PROPERTIES DEBUG_POSTFIX "d")
-endif()
-
-#链接库
-target_link_libraries(${PROJECT_NAME} PUBLIC
+target_link_libraries(plugin PRIVATE
+    Qt${QT_VERSION_MAJOR}::Quick
+    Qt${QT_VERSION_MAJOR}::Svg
+    Qt${QT_VERSION_MAJOR}::Network
     Qt${QT_VERSION_MAJOR}::CorePrivate
     Qt${QT_VERSION_MAJOR}::QuickPrivate
     Qt${QT_VERSION_MAJOR}::QmlPrivate
@@ -144,4 +155,8 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 )
 
 #安装
-install(DIRECTORY ${FLUENTUI_QML_PLUGIN_DIRECTORY} DESTINATION ${CMAKE_INSTALL_PREFIX}/imports)
+install(TARGETS plugin
+    BUNDLE DESTINATION .
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

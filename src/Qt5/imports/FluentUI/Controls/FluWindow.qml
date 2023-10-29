@@ -81,6 +81,7 @@ Window {
     Component{
         id:com_app_bar
         FluAppBar {
+            showDark: true
             title: window.title
         }
     }
@@ -195,6 +196,7 @@ Window {
                 var title_bar = loader_title_bar.item
                 setTitleBarItem(title_bar)
                 moveWindowToDesktopCenter()
+                setHitTestVisible(title_bar.darkButton())
                 setHitTestVisible(title_bar.minimizeButton())
                 setHitTestVisible(title_bar.maximizeButton())
                 setHitTestVisible(title_bar.closeButton())

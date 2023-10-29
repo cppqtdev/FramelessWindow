@@ -196,6 +196,7 @@ Rectangle{
             onClicked: closeClickListener()
         }
     }
+
     function stayTopButton(){
         return btn_stay_top
     }

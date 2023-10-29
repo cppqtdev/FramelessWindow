@@ -22,9 +22,12 @@ if (NOT CMAKE_CXX_STANDARD)
     set (CMAKE_CXX_STANDARD 17)
 endif()
 
-if (FLUENTUI_BUILD_EXAMPLES)
-    add_subdirectory(sample-example)
-endif ()
+add_subdirectory(src)
+add_subdirectory(zxing-cpp)
+
+#if (FLUENTUI_BUILD_EXAMPLES)
+#    add_subdirectory(sample-example)
+#endif ()
 
 set(FRAMELESSHELPER_BUILD_STATIC ON)
 set(FRAMELESSHELPER_NO_DEBUG_OUTPUT ON)
