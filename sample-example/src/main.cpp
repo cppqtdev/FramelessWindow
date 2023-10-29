@@ -10,15 +10,39 @@
 #include <QLoggingCategory>
 
 
+
+#include <QQmlEngine>
+#include <QGuiApplication>
+#include <QQuickItem>
+#include <QTimer>
+#include <QUuid>
+#include <QFontDatabase>
+#include <QClipboard>
+#include <FramelessHelper/Quick/framelessquickmodule.h>
+#include <FramelessHelper/Core/private/framelessconfig_p.h>
+
+
 #ifdef FLUENTUI_BUILD_STATIC_LIB
 #if (QT_VERSION > QT_VERSION_CHECK(6, 2, 0))
 Q_IMPORT_QML_PLUGIN(FluentUIPlugin)
 #endif
 #include <FluentUI.h>
 #endif
-
+using namespace wangwenx190::FramelessHelper;
 int main(int argc, char *argv[])
 {
+
+    FramelessHelper::Quick::initialize();
+    FramelessConfig::instance()->set(Global::Option::DisableLazyInitializationForMicaMaterial);
+    FramelessConfig::instance()->set(Global::Option::CenterWindowBeforeShow);
+    FramelessConfig::instance()->set(Global::Option::ForceNonNativeBackgroundBlur);
+    FramelessConfig::instance()->set(Global::Option::EnableBlurBehindWindow);
+#ifdef Q_OS_WIN
+    FramelessConfig::instance()->set(Global::Option::EnableBlurBehindWindow,false);
+#endif
+#ifdef Q_OS_MACOS
+    FramelessConfig::instance()->set(Global::Option::ForceNonNativeBackgroundBlur,false);
+#endif
 
     QNetworkProxy::setApplicationProxy(QNetworkProxy::NoProxy);
 #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
@@ -34,6 +58,7 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName("FluentUI");
     QGuiApplication app(argc, argv);
     QQmlApplicationEngine engine;
+    FramelessHelper::Quick::registerTypes(&engine);
 
     const QUrl url(QStringLiteral("qrc:/example/qml/App.qml"));
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,
