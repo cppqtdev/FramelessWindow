@@ -81,7 +81,6 @@ Window {
     Component{
         id:com_app_bar
         FluAppBar {
-            showDark: true
             title: window.title
         }
     }

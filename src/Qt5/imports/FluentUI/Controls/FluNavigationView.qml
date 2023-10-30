@@ -710,6 +710,7 @@ Item {
                 disabled:  {
                     return d.stackItems.length <= 1
                 }
+                visible: !disabled
                 iconSize: 13
                 onClicked: {
                     d.stackItems = d.stackItems.slice(0, -1)
